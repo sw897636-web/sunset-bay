@@ -1,61 +1,59 @@
-// Every tuning number and colour in one place. The playfield is a fixed 1280x720 logical area;
-// the renderer scales it to the window, so no rule below depends on the screen size.
-
-export const FIELD = { width: 1280, height: 720, groundY: 664 };
-
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
+// Sunset Bay: every tunable number lives here so the rest of the game reads
+// one shared truth. Units are metres, speeds are metres per second.
+export const CITY = {
+  blocks: 7,          // blocks per side
+  blockSize: 46,      // metres of buildings per block
+  roadWidth: 14,      // metres of asphalt between blocks
+  half: 0,            // filled in by citySize()
+};
+CITY.pitch = CITY.blockSize + CITY.roadWidth;
+CITY.half = (CITY.blocks * CITY.pitch + CITY.roadWidth) / 2; // city spans -half..half
+CITY.beachZ = CITY.half + 26;   // sand strip on the south edge (+z)
+CITY.oceanZ = CITY.half + 150;  // ocean plane extends to here
 
 export const PLAYER = {
-  width: 72,
-  height: 24,
-  speed: 560,
-  invulnerable: 1.5,
+  walkSpeed: 6,
+  runSpeed: 10,
+  radius: 0.55,
+  health: 100,
+  punchDamage: 25,
+  punchRange: 2.2,
 };
 
-export const LIVES = 3;
-
-export const BLOCK = {
-  minWidth: 40,
-  maxWidth: 110,
-  height: 36,
-  speed: 240,
-  speedPerLevel: 30,
-  speedJitter: 90,
-  interval: 0.55,
-  intervalScale: 0.88,
-  minInterval: 0.14,
-  dodgePoints: 1,
+export const CAR = {
+  accel: 22,
+  brake: 34,
+  reverseAccel: 12,
+  maxSpeed: 34,
+  maxReverse: 10,
+  turnRate: 1.9,
+  radius: 1.6,
 };
 
-export const COIN = {
-  size: 24,
-  speed: 190,
-  speedPerLevel: 14,
-  interval: 1.4,
-  intervalJitter: 0.8,
-  points: 10,
+export const POLICE = {
+  maxWanted: 5,
+  decaySeconds: 22,     // quiet seconds before one star fades
+  bustSeconds: 2.2,     // seconds pinned by a cop before the bust lands
+  copCarSpeed: 30,
+  footCopSpeed: 7.5,
 };
 
-/** Seconds of play per level, and the last level: speeds and spawn rates stop growing there. */
-export const LEVEL = { seconds: 12, max: 12 };
+export const SAVE_KEY = 'sunset-bay-save-v1';
 
-/** How many falling things can exist at once; the pool is allocated once, at boot. */
-export const POOL_SIZE = 64;
-
-export const PALETTE = {
-  backdrop: '#11141b',
-  sky: '#1b1f2a',
-  ground: '#2a3040',
-  player: '#4fc3f7',
-  block: '#e5534b',
-  coin: '#f2c94c',
-  panel: '#252b38',
-  text: '#eef1f5',
-  muted: '#8b93a3',
-};
-
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-/** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'block-dodger.best';
+export function clamp(value, min, max) {
+  return value < min ? min : value > max ? max : value;
+}
+export function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+export function dist2(ax, az, bx, bz) {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return dx * dx + dz * dz;
+}
+export function angleLerp(a, b, t) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}

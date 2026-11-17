@@ -3,17 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Sunset Bay — Open-World Crime Game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0f2e; font-family: 'Segoe UI', Arial, sans-serif; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .hidden { display: none !important; }
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); z-index: 5; }
+  #hudTopLeft { position: absolute; top: 14px; left: 16px; }
+  #healthWrap { width: 220px; height: 16px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.5); border-radius: 8px; overflow: hidden; }
+  #healthBar { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5a3c, #ffb03c); transition: width .2s; }
+  #cashLine { margin-top: 6px; font-size: 22px; font-weight: 700; color: #7dff9a; }
+  #cashLine small { font-size: 13px; color: #ddd; font-weight: 400; }
+  #ammoLine { margin-top: 2px; font-size: 14px; color: #ffe9a8; }
+  #wanted { position: absolute; top: 12px; right: 16px; font-size: 30px; letter-spacing: 4px; color: #ffd23c; }
+  #wanted .dim { color: rgba(255,255,255,.25); }
+  #wantedLabel { font-size: 11px; letter-spacing: 2px; color: #fff; text-align: right; margin-top: -4px; }
+  #missionBox { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); max-width: 520px; text-align: center; }
+  #missionTitle { font-size: 17px; font-weight: 700; color: #ffd23c; }
+  #missionText { font-size: 14px; margin-top: 2px; }
+  #missionTimer { font-size: 20px; font-weight: 700; color: #ff6b5e; margin-top: 2px; }
+  #toast { position: absolute; bottom: 210px; left: 50%; transform: translateX(-50%); font-size: 20px; font-weight: 700; color: #ffe9a8; text-align: center; }
+  #prompt { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); font-size: 16px; background: rgba(0,0,0,.6); padding: 6px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,.35); }
+  #hint { position: absolute; bottom: 12px; left: 16px; font-size: 12px; color: rgba(255,255,255,.75); line-height: 1.5; }
+  #speedo { position: absolute; bottom: 12px; right: 208px; font-size: 26px; font-weight: 700; text-align: right; }
+  #speedo small { font-size: 12px; font-weight: 400; display: block; }
+  #minimap { position: absolute; bottom: 12px; right: 12px; width: 180px; height: 180px; border: 2px solid rgba(255,255,255,.55); border-radius: 50%; background: rgba(10,10,30,.75); }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { top: 8px; left: 0; width: 18px; height: 2px; }
+  #damage { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(255,0,0,.55); opacity: 0; transition: opacity .15s; z-index: 6; }
+  /* ---------- Menus ---------- */
+  .menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: linear-gradient(180deg, rgba(26,10,40,.55), rgba(10,4,20,.88)); color: #fff; z-index: 10; text-align: center; }
+  .menu h1 { font-size: 64px; margin: 0; letter-spacing: 4px; color: #ffb03c; text-shadow: 0 4px 0 #c22e5a, 0 8px 24px rgba(0,0,0,.7); }
+  .menu h2 { font-size: 15px; font-weight: 400; color: #ffd9a0; margin: 8px 0 4px; letter-spacing: 3px; text-transform: uppercase; }
+  .menu p.story { max-width: 560px; font-size: 15px; line-height: 1.6; color: #eee; }
+  .menu .controls { font-size: 13px; line-height: 1.9; color: #ddd; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 10px 22px; margin: 14px 0; text-align: left; }
+  .menu .controls b { color: #ffd23c; }
+  .btn { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700; color: #1a0f2e; background: linear-gradient(180deg, #ffd23c, #ff9a3c); border: none; border-radius: 8px; padding: 12px 34px; margin: 6px; box-shadow: 0 4px 0 #a33d00; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.secondary { background: linear-gradient(180deg, #e8e8f0, #b9b9cc); box-shadow: 0 4px 0 #555; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  #endTitle { font-size: 52px; color: #ff5a4e; }
+  #endReason { font-size: 16px; color: #eee; max-width: 480px; line-height: 1.6; }
+  #saveNote { font-size: 12px; color: #aaa; margin-top: 14px; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
+<canvas id="game" aria-label="Sunset Bay: an open-world crime game"></canvas>
+<div id="damage"></div>
+<div id="hud" class="hidden">
+  <div id="hudTopLeft">
+    <div id="healthWrap"><div id="healthBar"></div></div>
+    <div id="cashLine">$0 <small id="cashSub"></small></div>
+    <div id="ammoLine"></div>
+  </div>
+  <div id="wanted"><span id="stars"></span><div id="wantedLabel">WANTED</div></div>
+  <div id="missionBox">
+    <div id="missionTitle"></div>
+    <div id="missionText"></div>
+    <div id="missionTimer"></div>
+  </div>
+  <div id="toast"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="hint">WASD move &middot; Mouse drag camera &middot; E enter / exit car &middot; F punch &middot; Q pistol &middot; Click shoot &middot; R reload &middot; Shift run &middot; P pause &middot; M mute</div>
+  <div id="speedo" class="hidden">0<small>mph</small></div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div id="crosshair" class="hidden"></div>
+</div>
+
+<div id="menuTitle" class="menu">
+  <h1>SUNSET BAY</h1>
+  <h2>An open-world crime story &middot; a city of your own</h2>
+  <p class="story">You are <b>Rico Vega</b>, fresh off the night bus with empty pockets and a
+  name to make. Mara, the fixer who runs the Bay from a garage on Coral Row, has work
+  for you &mdash; if you can drive, run, and stay one step ahead of the Bay City Police.
+  Steal cars, take the jobs, watch the stars.</p>
+  <div class="controls">
+    <b>W A S D</b> &mdash; move / drive &nbsp; <b>Mouse drag</b> &mdash; look around<br>
+    <b>E</b> &mdash; enter / steal car, exit car &nbsp; <b>Shift</b> &mdash; sprint<br>
+    <b>F</b> &mdash; punch &nbsp; <b>Q</b> &mdash; draw pistol &nbsp; <b>Click</b> &mdash; shoot &nbsp; <b>R</b> &mdash; reload<br>
+    <b>Space</b> &mdash; handbrake &nbsp; <b>P / Esc</b> &mdash; pause &nbsp; <b>M</b> &mdash; mute &nbsp; <b>T</b> &mdash; quick save
+  </div>
+  <div>
+    <button class="btn" id="btnNew">New Game</button>
+    <button class="btn secondary" id="btnContinue">Continue</button>
+  </div>
+  <div id="saveNote">Progress saves automatically after every mission &mdash; and with T.</div>
+</div>
+
+<div id="menuPause" class="menu hidden">
+  <h1 style="font-size:44px">PAUSED</h1>
+  <p class="story">The Bay waits for no one. Well &mdash; right now it does.</p>
+  <div>
+    <button class="btn" id="btnResume">Resume</button>
+    <button class="btn secondary" id="btnSave">Save Game</button>
+    <button class="btn secondary" id="btnQuit">Quit to Title</button>
+  </div>
+</div>
+
+<div id="menuEnd" class="menu hidden">
+  <h1 id="endTitle">BUSTED</h1>
+  <p id="endReason"></p>
+  <div>
+    <button class="btn" id="btnRetry">Retry Mission</button>
+    <button class="btn secondary" id="btnFreeRoam">Free Roam</button>
+    <button class="btn secondary" id="btnTitle2">Title Screen</button>
+  </div>
+</div>
+
+<div id="menuDone" class="menu hidden">
+  <h1 style="font-size:44px">YOU OWN SUNSET BAY</h1>
+  <p class="story">The gold sedan is on the boat, the cops are eating your dust, and Mara is
+  already lining up the next job. Every street in this city knows your name now.
+  Keep playing &mdash; the Bay is yours.</p>
+  <div><button class="btn" id="btnKeepPlaying">Keep Playing</button></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
