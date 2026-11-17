@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunset Bay — Open-World Crime</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="hud" class="hidden">
+<div id="top-left">
+<div id="stars" class="stars">&#9734;&#9734;&#9734;&#9734;&#9734;</div>
+<div id="cash" class="cash">$250</div>
+<div id="health-bar"><div id="health-fill"></div></div>
+<div id="ammo" class="ammo">AMMO 12</div>
+</div>
+<div id="top-right">
+<canvas id="minimap" width="170" height="170"></canvas>
+<div id="speed"><span id="speed-unit">MPH</span></div>
+</div>
+<div id="objective-box">
+<div id="objective">Welcome to Sunset Bay</div>
+<div id="objective-dist"></div>
+</div>
+<div id="crosshair" style="display:none">+</div>
+<div id="feed"></div>
+<div id="banner" class="hidden">
+<div id="banner-title"></div>
+<div id="banner-sub"></div>
+</div>
+<div id="damage-flash"></div>
+<div id="hint">WASD move &middot; E enter car &middot; Click shoot &middot; R reload &middot; Shift sprint &middot; M mute &middot; Esc pause</div>
+</div>
+<div id="start-screen" class="menu">
+<div class="menu-card">
+<h1>SUNSET BAY</h1>
+<p class="tagline">A city of sun, sin and second chances.</p>
+<p class="story">You are Jax Marlowe, getaway driver, back in Sunset Bay with $250 and a debt to Mama Lou. Steal cars, run her jobs, dodge the Bay PD &mdash; and don't get caught.</p>
+<div class="controls-grid">
+<div><b>WASD</b> move / drive</div>
+<div><b>Mouse</b> look (click to lock)</div>
+<div><b>E</b> enter / exit car</div>
+<div><b>Click</b> shoot</div>
+<div><b>R</b> reload</div>
+<div><b>Shift</b> sprint</div>
+<div><b>Space</b> handbrake</div>
+<div><b>Esc</b> pause</div>
+</div>
+<button id="start-btn" class="big-btn">Start Engine</button>
+<button id="continue-btn" class="big-btn ghost hidden">Continue</button>
+<p class="fine">An original game. No Rockstar content. Sound is synthesized live.</p>
+</div>
+</div>
+<div id="pause-screen" class="menu hidden">
+<div class="menu-card">
+<h1>PAUSED</h1>
+<p class="tagline">The city waits. Mama Lou doesn't.</p>
+<button id="resume-btn" class="big-btn">Resume</button>
+<button id="restart-btn" class="big-btn ghost">Restart from scratch</button>
+<button id="mute-btn" class="big-btn ghost">Toggle sound [M]</button>
+</div>
+</div>
+<div id="over-screen" class="menu hidden">
+<div class="menu-card">
+<h1 id="over-title">WASTED</h1>
+<p id="over-sub" class="tagline"></p>
+<button id="retry-btn" class="big-btn">Back to the streets</button>
+</div>
+</div>
+<script type="module" src="./src/boot.js"></script>
+</body>
+</html>
