@@ -1,175 +1,123 @@
-// The wanted system and the Bay City Police. Crimes raise stars; stars
-// decide how many cop cars hunt you. Cop cars ram and pin you; foot cops
-// chase you down on foot. Stay quiet and the heat fades, one star at a time.
-import { COPS, WORLD, clampNum, turnToward, distSq } from './config.js';
-import { makeVehicle } from './vehicles.js';
-import { buildPerson, walkCycle } from './models.js';
-import { collideCircle } from './city.js';
+// Sunset Bay: the wanted system — stars, police pursuit cars, sirens,
+// losing the tail, and getting busted.
 
-export function createPolice(scene, world) {
-  const cruisers = []; // cop cars
-  const beatCops = []; // foot cops
-  let stars = 0;
-  let quietFor = 0;
-  let pinTime = 0;
+import * as THREE from 'three';
+import { CONFIG } from './config.js';
+import { makeRng, range, pick, clamp } from './random.js';
+import { makeCarMesh, makeCarRecord } from './vehicles.js';
+import { roadLines, resolveCircleCollision } from './world.js';
 
-  function wantedCars() {
-    return stars === 0 ? 0 : Math.min(stars, 4);
-  }
-
-  function sendCruiser() {
-    // Appear on a road a little way off, so they drive in rather than pop
-    // up on top of the player.
-    const px = world.player.x;
-    const pz = world.player.z;
-    let spot = world.city.randomNode();
-    let tries = 0;
-    while (distSq(spot.x, spot.z, px, pz) < 60 * 60 && tries < 20) {
-      spot = world.city.randomNode();
-      tries += 1;
-    }
-    const car = makeVehicle(scene, { x: spot.x, z: spot.z, heading: 0, police: true });
-    car.speed = 8;
-    cruisers.push(car);
-    world.cars.push(car);
-  }
-
-  function sendBeatCop() {
-    const px = world.player.x;
-    const pz = world.player.z;
-    const mesh = buildPerson({ jacket: 0x1c2f5e, pants: 0x1c2f5e, skin: 0xe8b98a, hair: 0x111111 });
-    mesh.position.set(px + 18, 0, pz + 12);
-    scene.add(mesh);
-    beatCops.push({ mesh, x: px + 18, z: pz + 12, heading: 0, phase: 0 });
-  }
-
-  function retireCruiser(car) {
-    scene.remove(car.mesh);
-    const i = world.cars.indexOf(car);
-    if (i >= 0) world.cars.splice(i, 1);
-  }
-
-  return {
-    get wanted() { return stars; },
-    setWanted(value) {
-      const next = clampNum(Math.round(value), 0, COPS.stars);
-      if (next > stars) quietFor = 0;
-      stars = next;
-    },
-    addWanted(amount) {
-      this.setWanted(stars + amount);
-      quietFor = 0;
-    },
-    commitCrime(x, z) {
-      for (const ped of world.peds) ped.scare(x, z);
-    },
-    clearAll() {
-      for (const car of cruisers) retireCruiser(car);
-      cruisers.length = 0;
-      for (const cop of beatCops) scene.remove(cop.mesh);
-      beatCops.length = 0;
-      stars = 0;
-      pinTime = 0;
-      quietFor = 0;
-    },
-    update(dt, world) {
-      // Fade the heat after a quiet spell.
-      if (stars > 0) {
-        quietFor += dt;
-        if (quietFor > COPS.coolOff) {
-          stars -= 1;
-          quietFor = 0;
-        }
-      }
-      // Match the fleet to the wanted level.
-      while (cruisers.length < wantedCars()) sendCruiser();
-      while (cruisers.length > wantedCars()) retireCruiser(cruisers[cruisers.length - 1]);
-      const beatCount = stars >= 3 ? 2 : 0;
-      while (beatCops.length < beatCount) sendBeatCop();
-      while (beatCops.length > beatCount) scene.remove(beatCops.pop().mesh);
-
-      const hero = world.player;
-      const driving = !!world.playerCar;
-      // Cruisers chase the player and ram on contact.
-      for (const car of cruisers) {
-        const dx = hero.x - car.x;
-        const dz = hero.z - car.z;
-        const d = Math.hypot(dx, dz);
-        const want = Math.atan2(dx, dz);
-        car.heading = turnToward(car.heading, want, Math.min(1, dt * 2.6));
-        const chaseSpeed = d > 60 ? COPS.chase : COPS.chase * 0.8;
-        car.speed += clampNum(chaseSpeed - car.speed, -20 * dt, 14 * dt);
-        const oldX = car.x;
-        const oldZ = car.z;
-        car.x += Math.sin(car.heading) * car.speed * dt;
-        car.z += Math.cos(car.heading) * car.speed * dt;
-        if (collideCircle(world.city.solids, car, 1.6)) {
-          // Blocked by a building: swing around it instead of grinding.
-          car.x = oldX;
-          car.z = oldZ;
-          car.heading += 0.9 * dt * 3;
-          car.speed *= 0.6;
-        }
-        car.mesh.position.set(car.x, 0, car.z);
-        car.mesh.rotation.y = car.heading;
-        for (const wheel of car.mesh.userData.wheels) wheel.rotation.x += car.speed * dt * 1.4;
-        if (car.mesh.userData.lightBar) {
-          car.mesh.userData.lightBar.material.color.setHex(Math.floor(world.time * 4) % 2 === 0 ? 0xff2222 : 0x2266ff);
-        }
-        // Ram the hero's car, or pin the hero on foot.
-        if (driving && world.playerCar) {
-          const dd = distSq(car.x, car.z, world.playerCar.x, world.playerCar.z);
-          if (dd < 13) {
-            world.playerCar.speed *= 0.82;
-            world.player.health -= 6 * dt;
-            world.onCrash(6);
-            const reach = Math.sqrt(dd) || 1;
-            const ux = (world.playerCar.x - car.x) / reach;
-            const uz = (world.playerCar.z - car.z) / reach;
-            world.playerCar.x += ux * 3.2 * dt * 4;
-            world.playerCar.z += uz * 3.2 * dt * 4;
-          }
-        } else if (d < 2.4) {
-          pinTime += dt;
-          if (pinTime > COPS.pinTime) world.onBusted();
-        }
-      }
-      // Beat cops run the hero down on foot.
-      for (const cop of beatCops) {
-        const dx = hero.x - cop.x;
-        const dz = hero.z - cop.z;
-        const d = Math.hypot(dx, dz);
-        const want = Math.atan2(dx, dz);
-        cop.heading = turnToward(cop.heading, want, Math.min(1, dt * 3));
-        const pace = d > 3 ? COPS.foot : 0;
-        cop.x += Math.sin(cop.heading) * pace * dt;
-        cop.z += Math.cos(cop.heading) * pace * dt;
-        if (collideCircle(world.city.solids, cop, 0.55)) {
-          cop.x -= Math.sin(cop.heading) * pace * dt;
-          cop.z -= Math.cos(cop.heading) * pace * dt;
-        }
-        cop.phase += dt * pace * 2;
-        walkCycle(cop.mesh, cop.phase, 1);
-        cop.mesh.position.set(cop.x, cop.mesh.position.y, cop.z);
-        cop.mesh.rotation.y = cop.heading;
-        if (d < 1.8) {
-          hero.health -= 14 * dt;
-          pinTime += dt * 0.7;
-          if (pinTime > COPS.pinTime) world.onBusted();
-        }
-      }
-      // Pinned slowly by a car while on foot also builds the bust.
-      if (!driving && stars > 0) {
-        let pinned = false;
-        for (const car of cruisers) {
-          if (distSq(car.x, car.z, hero.x, hero.z) < 16 && car.speed < 4) pinned = true;
-        }
-        if (pinned) pinTime += dt;
-        else pinTime = Math.max(0, pinTime - dt * 2);
-      } else if (driving) {
-        pinTime = Math.max(0, pinTime - dt * 2);
-      }
-      return { pinTime };
-    },
-  };
+export class PoliceSystem {
+constructor(scene, world, seed) {
+this.scene = scene;
+this.world = world;
+this.rng = makeRng(seed + 303);
+this.wanted = 0;
+this.crimeTimer = 0;
+this.decayTimer = 0;
+this.bustedTimer = 0;
+this.cars = [];
+this.lines = roadLines();
+this.sirenPhase = 0;
+this.sirenLight = null;
+}
+addWanted(stars) {
+this.wanted = clamp(this.wanted + stars, 0, 5);
+this.crimeTimer = 0;
+this.decayTimer = 0;
+}
+setWanted(stars) {
+this.wanted = clamp(stars, 0, 5);
+this.crimeTimer = 0;
+this.decayTimer = 0;
+}
+spawnPoliceCar(x, z) {
+const mesh = makeCarMesh(0x1a1a1a, 'police');
+const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.2, 1.2), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+stripe.position.set(0, 0.62, 0.4);
+mesh.add(stripe);
+const car = makeCarRecord(mesh, 'police', 0x1a1a1a);
+car.x = x;
+car.z = z;
+car.heading = this.rng() * Math.PI * 2;
+car.speed = 0;
+car.cruiseSpeed = 20;
+this.scene.add(mesh);
+this.cars.push(car);
+return car;
+}
+nearestSpawn(px, pz) {
+const angle = this.rng() * Math.PI * 2;
+const dist = range(this.rng, 90, 130);
+let x = px + Math.cos(angle) * dist;
+let z = pz + Math.sin(angle) * dist;
+x = clamp(x, -CONFIG.cityHalf + 10, CONFIG.cityHalf - 10);
+z = clamp(z, -CONFIG.cityHalf + 10, CONFIG.cityHalf - 10);
+const lines = this.lines;
+let bestX = x;
+let bestD = Infinity;
+for (const v of lines) {
+const d = Math.abs(x - v);
+if (d < bestD) { bestD = d; bestX = v; }
+}
+return { x: bestX, z };
+}
+update(dt, player) {
+this.crimeTimer += dt;
+if (this.wanted > 0 && this.crimeTimer > CONFIG.wantedDecaySeconds) {
+this.decayTimer += dt;
+if (this.decayTimer > 10) {
+this.decayTimer = 0;
+this.wanted = Math.max(0, this.wanted - 1);
+}
+}
+const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, CONFIG.policeMax);
+while (this.cars.length < want) {
+const s = this.nearestSpawn(player.x, player.z);
+this.spawnPoliceCar(s.x, s.z);
+}
+while (this.cars.length > want) {
+const car = this.cars.pop();
+this.scene.remove(car.mesh);
+}
+let nearest = Infinity;
+for (const car of this.cars) {
+const dx = player.x - car.x;
+const dz = player.z - car.z;
+const dist = Math.sqrt(dx * dx + dz * dz);
+if (dist < nearest) nearest = dist;
+const desired = car.staged ? car.heading : Math.atan2(dx, dz);
+let diff = desired - car.heading;
+while (diff > Math.PI) diff -= Math.PI * 2;
+while (diff < -Math.PI) diff += Math.PI * 2;
+car.heading += clamp(diff, -2.4 * dt, 2.4 * dt);
+const topSpeed = car.staged ? (player.car ? player.car.speed : 0) : 15 + this.wanted * 2.2;
+car.speed += clamp(topSpeed - car.speed, -10 * dt, 8 * dt);
+const nx = car.x + Math.sin(car.heading) * car.speed * dt;
+const nz = car.z + Math.cos(car.heading) * car.speed * dt;
+const pos = { x: nx, z: nz };
+resolveCircleCollision(pos, 1.7, this.world.colliders);
+car.x = pos.x;
+car.z = pos.z;
+car.mesh.position.set(car.x, 0, car.z);
+car.mesh.rotation.y = car.heading;
+const bar = car.mesh.children.find((c) => c.geometry && c.geometry.parameters && c.geometry.parameters.width === 1.1);
+if (bar) {
+this.sirenPhase += dt * 6;
+bar.material.color.setHex(Math.sin(this.sirenPhase) > 0 ? 0xff2222 : 0x2244ff);
+}
+}
+if (this.wanted > 0 && player.onFoot && nearest < 4) {
+this.bustedTimer += dt;
+} else {
+this.bustedTimer = Math.max(0, this.bustedTimer - dt * 2);
+}
+return { nearestPolice: nearest, busted: this.bustedTimer >= CONFIG.bustedSeconds };
+}
+clearAll() {
+for (const car of this.cars) this.scene.remove(car.mesh);
+this.cars = [];
+this.wanted = 0;
+this.bustedTimer = 0;
+}
 }

@@ -1,133 +1,109 @@
-// On-foot combat: fists and a pistol. Punching is quiet-ish, shooting is
-// loud and the whole street notices. Shots are hitscan against pedestrians,
-// beat cops and cars; a tracer line shows where the shot went.
+// Sunset Bay: combat — hitscan shooting with tracers and muzzle flash,
+// car damage, smoke, and explosions.
+
 import * as THREE from 'three';
-import { HERO, distSq } from './config.js';
+import { CONFIG } from './config.js';
 
-export function createCombat(scene, world) {
-  const tracerMat = new THREE.LineBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.9 });
-  let tracer = null;
-  let tracerLife = 0;
-  let fistWait = 0;
-  let shotWait = 0;
-  let reloadLeft = 0;
-
-  function drawTracer(from, to) {
-    if (tracer) scene.remove(tracer);
-    const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
-    tracer = new THREE.Line(geo, tracerMat);
-    scene.add(tracer);
-    tracerLife = 0.08;
-  }
-
-  function pickTarget(x, z, dirX, dirZ, maxDist, includePeds) {
-    // The closest thing roughly in front of the shot.
-    let best = null;
-    let bestD = maxDist;
-    const consider = (tx, tz, obj) => {
-      const dx = tx - x;
-      const dz = tz - z;
-      const d = Math.hypot(dx, dz);
-      if (d > bestD || d < 0.5) return;
-      const dot = (dx * dirX + dz * dirZ) / d;
-      if (dot < 0.86) return;
-      bestD = d;
-      best = { obj, d };
-    };
-    if (includePeds) for (const ped of world.peds) if (!ped.down) consider(ped.x, ped.z, ped);
-    for (const car of world.cars) consider(car.x, car.z, car);
-    return best;
-  }
-
-  return {
-    get ammo() { return world.player.ammo; },
-    get reloading() { return reloadLeft > 0; },
-    update(dt) {
-      fistWait = Math.max(0, fistWait - dt);
-      shotWait = Math.max(0, shotWait - dt);
-      if (reloadLeft > 0) {
-        reloadLeft -= dt;
-        if (reloadLeft <= 0) {
-          world.player.ammo = 12;
-          world.audio.pickup();
-        }
-      }
-      if (tracer) {
-        tracerLife -= dt;
-        if (tracerLife <= 0) {
-          scene.remove(tracer);
-          tracer = null;
-        }
-      }
-    },
-    punch() {
-      if (fistWait > 0) return;
-      fistWait = 0.45;
-      const hero = world.player;
-      world.audio.punch();
-      // Swing the arm for feedback.
-      hero.punchAnim = 0.25;
-      let landed = false;
-      for (const ped of world.peds) {
-        if (ped.down) continue;
-        if (distSq(hero.x, hero.z, ped.x, ped.z) < HERO.reach * HERO.reach) {
-          ped.knockDown();
-          landed = true;
-          world.police.addWanted(1);
-          world.police.commitCrime(hero.x, hero.z);
-          world.toast('You decked a pedestrian. The street saw that.');
-        }
-      }
-      if (!landed) {
-        // A whiff: a little noise, no crime.
-      }
-    },
-    shoot() {
-      if (shotWait > 0 || reloadLeft > 0) return;
-      const hero = world.player;
-      if (!hero.hasPistol) {
-        world.toast('No pistol yet — finish the Sunset Run to earn one.');
-        shotWait = 0.4;
-        return;
-      }
-      if (hero.ammo <= 0) {
-        world.toast('Magazine empty — press R to reload.');
-        shotWait = 0.4;
-        return;
-      }
-      shotWait = 0.28;
-      hero.ammo -= 1;
-      const dirX = Math.sin(hero.heading);
-      const dirZ = Math.cos(hero.heading);
-      const from = new THREE.Vector3(hero.x, 1.5, hero.z);
-      const hit = pickTarget(hero.x, hero.z, dirX, dirZ, 70, true);
-      const end = hit
-        ? new THREE.Vector3(hit.obj.x, 1.2, hit.obj.z)
-        : new THREE.Vector3(hero.x + dirX * 70, 1.5, hero.z + dirZ * 70);
-      drawTracer(from, end);
-      world.audio.shoot();
-      world.police.addWanted(2);
-      world.police.commitCrime(hero.x, hero.z);
-      if (hit) {
-        if (hit.obj.health !== undefined && hit.obj.mesh) {
-          // A car: damage it until it smokes and stalls.
-          hit.obj.health -= 34;
-          if (hit.obj.health <= 0) {
-            hit.obj.speed = 0;
-            hit.obj.traffic = false;
-            world.toast('You disabled that car.');
-          }
-        } else if (hit.obj.knockDown) {
-          hit.obj.knockDown();
-          world.toast('Target down.');
-        }
-      }
-    },
-    reload() {
-      const hero = world.player;
-      if (!hero.hasPistol || hero.ammo === 12 || reloadLeft > 0) return;
-      reloadLeft = 1.1;
-      world.toast('Reloading…');
-    },
-  };
+export class CombatSystem {
+constructor(scene) {
+this.scene = scene;
+this.raycaster = new THREE.Raycaster();
+this.effects = [];
+this.tracerMat = new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9 });
+this.flashLight = new THREE.PointLight(0xffc860, 0, 14);
+this.scene.add(this.flashLight);
+this.explosions = [];
+}
+shoot(origin, direction, shootables, onHitPed, onHitCar) {
+this.raycaster.set(origin, direction);
+this.raycaster.far = CONFIG.shotRange;
+const hits = this.raycaster.intersectObjects(shootables, true);
+let end = origin.clone().add(direction.clone().multiplyScalar(CONFIG.shotRange));
+let hitSomething = null;
+if (hits.length > 0) {
+const hit = hits[0];
+end = hit.point.clone();
+hitSomething = hit;
+}
+const geo = new THREE.BufferGeometry().setFromPoints([origin.clone(), end]);
+const tracer = new THREE.Line(geo, this.tracerMat.clone());
+this.scene.add(tracer);
+this.effects.push({ mesh: tracer, life: 0.09, max: 0.09, kind: 'tracer' });
+this.flashLight.position.copy(origin);
+this.flashLight.intensity = 60;
+this.flashTimer = 0.05;
+if (!hitSomething) return null;
+let obj = hitSomething.object;
+while (obj && !obj.userData.shootable) obj = obj.parent;
+if (!obj) return { point: end, kind: 'world' };
+if (obj.userData.shootable === 'ped') {
+if (onHitPed) onHitPed(obj.userData.ref, end);
+return { point: end, kind: 'ped' };
+}
+if (obj.userData.shootable === 'car') {
+if (onHitCar) onHitCar(obj.userData.ref, end);
+return { point: end, kind: 'car' };
+}
+return { point: end, kind: 'world' };
+}
+explode(position, onDone) {
+const geo = new THREE.SphereGeometry(1, 16, 12);
+const mat = new THREE.MeshBasicMaterial({ color: 0xff7722, transparent: true, opacity: 0.95 });
+const ball = new THREE.Mesh(geo, mat);
+ball.position.copy(position);
+ball.position.y = 1.2;
+this.scene.add(ball);
+const light = new THREE.PointLight(0xff8830, 120, 40);
+light.position.copy(position);
+light.position.y = 2;
+this.scene.add(light);
+this.explosions.push({ mesh: ball, light, life: 0.7, max: 0.7, onDone });
+}
+spawnSmoke(position) {
+const geo = new THREE.SphereGeometry(0.9, 8, 6);
+const mat = new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.55 });
+const puff = new THREE.Mesh(geo, mat);
+puff.position.copy(position);
+puff.position.y = 1.6;
+this.scene.add(puff);
+this.effects.push({ mesh: puff, life: 1.4, max: 1.4, kind: 'smoke' });
+}
+update(dt) {
+if (this.flashTimer !== undefined && this.flashTimer > 0) {
+this.flashTimer -= dt;
+if (this.flashTimer <= 0) this.flashLight.intensity = 0;
+}
+for (let i = this.effects.length - 1; i >= 0; i--) {
+const e = this.effects[i];
+e.life -= dt;
+if (e.life <= 0) {
+this.scene.remove(e.mesh);
+if (e.mesh.geometry) e.mesh.geometry.dispose();
+this.effects.splice(i, 1);
+continue;
+}
+if (e.kind === 'tracer') {
+e.mesh.material.opacity = 0.9 * (e.life / e.max);
+} else if (e.kind === 'smoke') {
+e.mesh.position.y += dt * 1.5;
+const s = 1 + (1 - e.life / e.max) * 2;
+e.mesh.scale.setScalar(s);
+e.mesh.material.opacity = 0.55 * (e.life / e.max);
+}
+}
+for (let i = this.explosions.length - 1; i >= 0; i--) {
+const ex = this.explosions[i];
+ex.life -= dt;
+const t = 1 - ex.life / ex.max;
+ex.mesh.scale.setScalar(1 + t * 9);
+ex.mesh.material.opacity = 0.95 * (1 - t);
+ex.light.intensity = 120 * (1 - t);
+if (ex.life <= 0) {
+this.scene.remove(ex.mesh);
+this.scene.remove(ex.light);
+this.explosions.splice(i, 1);
+if (ex.onDone) ex.onDone();
+}
+}
+}
 }

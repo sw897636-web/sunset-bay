@@ -1,82 +1,96 @@
-// Keyboard and mouse for Sunset Bay. The camera orbits by dragging the
-// mouse (no pointer lock, so it behaves the same in a real browser and in
-// a headless screenshot run). Each frame the game reads `state` and spends
-// the one-frame edge events through `wasPressed` / `wasClicked`.
-export function createControls(canvas) {
-  const held = new Set();
-  const fresh = new Set();
-  let dragX = 0;
-  let dragY = 0;
-  let dragging = false;
-  let tap = false;
-  let downX = 0;
-  let downY = 0;
-  let prevX = 0;
-  let prevY = 0;
+// Sunset Bay: keyboard and mouse input — one shared state object the
+// game loop reads every frame. Also handles pointer lock on click.
 
-  function readKey(event) {
-    return event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  }
-
-  window.addEventListener('keydown', (event) => {
-    const key = readKey(event);
-    if (key === ' ' || key.startsWith('arrow')) event.preventDefault();
-    if (!held.has(key)) fresh.add(key);
-    held.add(key);
-  });
-  window.addEventListener('keyup', (event) => held.delete(readKey(event)));
-  window.addEventListener('blur', () => held.clear());
-
-  canvas.addEventListener('mousedown', (event) => {
-    dragging = true;
-    prevX = event.clientX;
-    prevY = event.clientY;
-    downX = event.clientX;
-    downY = event.clientY;
-  });
-  window.addEventListener('mouseup', (event) => {
-    if (dragging && Math.abs(event.clientX - downX) < 6 && Math.abs(event.clientY - downY) < 6) {
-      tap = true;
-    }
-    dragging = false;
-  });
-  window.addEventListener('mousemove', (event) => {
-    if (!dragging) return;
-    dragX += event.clientX - prevX;
-    dragY += event.clientY - prevY;
-    prevX = event.clientX;
-    prevY = event.clientY;
-  });
-
-  return {
-    state: {
-      get forward() { return held.has('w') || held.has('arrowup'); },
-      get back() { return held.has('s') || held.has('arrowdown'); },
-      get left() { return held.has('a') || held.has('arrowleft'); },
-      get right() { return held.has('d') || held.has('arrowright'); },
-      get run() { return held.has('shift'); },
-      get brake() { return held.has(' '); },
-    },
-    // True once, on the frame the key went down; cleared by endFrame().
-    wasPressed(key) { return fresh.has(key); },
-    // True while the key is held down right now (for hold-to-work actions).
-    isHeld(key) { return held.has(key); },
-    // True once, on the frame the mouse was clicked without dragging.
-    wasClicked() { return tap; },
-    // Mouse drag accumulated since the last frame, in pixels.
-    consumeDrag() {
-      const out = { x: dragX, y: dragY };
-      dragX = 0;
-      dragY = 0;
-      return out;
-    },
-    // Hooks for the screenshot autopilot: pretend a key is held, or inject a press.
-    hold(key) { held.add(key); },
-    release(key) { held.delete(key); },
-    press(key) { fresh.add(key); },
-    endFrame() {
-      fresh.clear();
-      tap = false;
-    },
-  };
+export class Input {
+constructor(canvas) {
+this.keys = {};
+this.mouseDX = 0;
+this.mouseDY = 0;
+this.mouseDown = false;
+this.clicked = false;
+this.dragging = false;
+this.lastX = 0;
+this.lastY = 0;
+this.autopilot = false;
+this.autoSteer = 0;
+this.canvas = canvas;
+window.addEventListener('keydown', (e) => {
+if (e.repeat) return;
+this.keys[e.code] = true;
+if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', (e) => {
+this.keys[e.code] = false;
+});
+canvas.addEventListener('mousedown', (e) => {
+this.mouseDown = true;
+this.clicked = true;
+this.dragging = true;
+this.lastX = e.clientX;
+this.lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => {
+this.mouseDown = false;
+this.dragging = false;
+});
+window.addEventListener('mousemove', (e) => {
+if (!this.dragging) return;
+this.mouseDX += e.clientX - this.lastX;
+this.mouseDY += e.clientY - this.lastY;
+this.lastX = e.clientX;
+this.lastY = e.clientY;
+});
+document.addEventListener('pointerlockchange', () => {
+this.locked = document.pointerLockElement === canvas;
+});
+window.addEventListener('mousemove', (e) => {
+if (this.locked) {
+this.mouseDX += e.movementX || 0;
+this.mouseDY += e.movementY || 0;
+}
+});
+}
+consumeMouse() {
+const dx = this.mouseDX;
+const dy = this.mouseDY;
+this.mouseDX = 0;
+this.mouseDY = 0;
+return { dx, dy };
+}
+consumeClick() {
+const c = this.clicked;
+this.clicked = false;
+return c;
+}
+pressed(code) {
+const v = !!this.keys[code];
+if (v) this.keys[code] = false;
+return v;
+}
+read() {
+if (this.autopilot) {
+return {
+forward: true,
+back: false,
+left: this.autoSteer > 0.15,
+right: this.autoSteer < -0.15,
+run: false,
+jump: false,
+handbrake: false,
+enter: false,
+shoot: false,
+};
+}
+return {
+forward: !!(this.keys.KeyW || this.keys.ArrowUp),
+back: !!(this.keys.KeyS || this.keys.ArrowDown),
+left: !!(this.keys.KeyA || this.keys.ArrowLeft),
+right: !!(this.keys.KeyD || this.keys.ArrowRight),
+run: !!this.keys.ShiftLeft || !!this.keys.ShiftRight,
+jump: !!this.keys.Space,
+handbrake: !!this.keys.Space,
+enter: this.pressed('KeyE'),
+shoot: this.mouseDown,
+};
+}
 }

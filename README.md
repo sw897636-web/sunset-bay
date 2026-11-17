@@ -1,103 +1,48 @@
-# Sunset Bay — an open-world crime game
+# Sunset Bay
 
-[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/)
 [![rank](https://make.fun/badge/gta6-01/sw897636-web/sunset-bay/rank.svg)](https://make.fun/bounty/gta6-01)
 [![reward](https://make.fun/badge/gta6-01/sw897636-web/sunset-bay/reward.svg)](https://make.fun/bounty/gta6-01)
 
-**Sunset Bay** is a complete open-world crime game that runs in desktop Chrome
-from static files — no build step, no network requests at runtime. Roam a
-sun-soaked procedural coastal city on foot and by car, steal cars, run jobs
-for Mara the fixer, and stay one step ahead of the Bay City Police.
+**Sunset Bay** is an original 3D open-world crime game for make.fun's `gta6-01` bounty — a sun-soaked coastal city you explore on foot and by car, built from scratch with three.js (vendored) and plain static files. No network, no build step: open `game/index.html` from any static server and play.
 
-[Play it on make.fun](https://make.fun/bounty/gta6-01)
+## The city
 
-## The game
+Sunset Bay is a fictional coastal city of eight districts — the Marina, Palm Row, Coral Heights, Dockside, Old Town, Bayfront, the Neon Strip and Sunset Plaza — with a beach, an ocean and a pier on its west edge. Traffic drives the avenues, pedestrians walk the sidewalks, and the sun hangs low over the water all day.
 
-You are **Rico Vega**, fresh off the night bus with empty pockets and a name
-to make. Mara runs the Bay from a garage on Coral Row, and she has five jobs
-for you:
+## Play
 
-1. **First Wheels** — steal any car and bring it to Mara's Garage.
-2. **The Sunset Run** — grab a package at the end of the pier and deliver it
-   to Sunset Tower before the buyer walks (timed). Earns you a pistol.
-3. **The Pickup** — collect Dana at the marina and get her to the garage with
-   the cops already on you.
-4. **The Corner Job** — empty the till at the Coral Corner Store, then lose a
-   two-star wanted level.
-5. **The Gold Sedan** — steal the gold sedan at the marina, lose three stars
-   of heat, and put it on Mara's boat. Finish the story and the Bay is yours.
+You are **Mara Voss**, a driver with a debt. **Rico Delmar** offers her five jobs — a pickup, a stolen coupe, a timed beach run, a police escape, and one big bank job — and a cut big enough to buy her freedom. The crew's boss, **Salvatore Kane**, would rather she failed.
 
-Between jobs the city is yours to roam: traffic cruises the streets,
-pedestrians stroll the sidewalks (and scatter when trouble starts), and every
-crime raises your wanted level — up to five stars, with cop cars that ram you
-and foot cops that run you down. Get busted or wasted and you can retry the
-job or free-roam instead.
+- **On foot**: WASD to move, Shift to run, Space to jump, mouse drag to look, click to shoot.
+- **Driving**: walk up to any car and press E to get in; WASD to drive, Space to handbrake, E to get out. Stealing a car raises your wanted level.
+- **Wanted**: crimes raise stars (up to 5). Police cars chase, ram and try to bust you. Lose them to cool down — get caught on foot and you are busted.
+- **Missions**: follow the yellow marker, watch the objective panel and the minimap. Progress and cash save in your browser.
+- **HUD**: wanted stars, cash, health, speed, district name and a live minimap.
 
-## Features
+## Run it
 
-- Procedural 3D city (three.js): 7×7 blocks of pastel buildings with lit
-  windows, roads with markings, palms, lamps, a beach, ocean and a pier.
-- Driving with arcade handling, handbrake, collisions and traffic that brakes
-  for the car ahead.
-- On-foot movement, sprinting, melee punches and a pistol (hitscan with
-  tracers, reload, ammo).
-- Wanted system (0–5 stars) with police cars that chase and ram, foot cops,
-  bust timer and heat that fades when you stay quiet.
-- Five story missions with beacons, timers, objectives and cash rewards.
-- HUD: health, cash, wanted stars, mission panel, speedometer and a live
-  circular minimap (player, traffic, police, mission marker).
-- Title, pause, busted/wasted and story-complete screens; save/load via
-  localStorage (auto-save after every mission, `T` to quick-save).
-- Synthesized sound: engine hum, police sirens, gunshots, impacts, mission
-  jingles and a slow sunset chord progression — all WebAudio, no audio files.
-
-## Controls
-
-| Key | Action |
-| --- | --- |
-| W A S D / arrows | Move / drive |
-| Mouse drag | Look around (camera) |
-| E | Enter / steal car, exit car; hold E to work a job |
-| Shift | Sprint |
-| F | Punch |
-| Q | Draw / holster pistol |
-| Click | Shoot (pistol drawn) |
-| R | Reload |
-| Space | Handbrake |
-| P / Esc | Pause |
-| M | Mute |
-| T | Quick save |
-
-## How to run
-
-```sh
+```
 node serve.ts
 ```
 
-Then open <http://localhost:8080> in desktop Chrome. No build step and no
-network access needed — every script is a file under `game/`, including the
-vendored three.js build (`game/vendor/three.module.min.js`).
+Then open http://localhost:8080 in desktop Chrome. Screenshots are staged scenes of the real game (`?shot=1..4`); the playtest script `playtest.mjs` retakes them in headless Chromium.
 
 ## Layout
 
-- `game/index.html` — page, HUD and menus.
-- `game/src/main.js` — boot, game loop, screens, camera, hero, save/load.
-- `game/src/city.js` — procedural city, road graph, collisions.
-- `game/src/vehicles.js` — driving physics and traffic AI.
-- `game/src/pedestrians.js` — pedestrians.
-- `game/src/police.js` — wanted level and police AI.
-- `game/src/missions.js` — the five story jobs.
-- `game/src/combat.js` — punches and shooting.
-- `game/src/hud.js` — HUD and live minimap.
-- `game/src/audio.js` — synthesized WebAudio effects and music.
-- `game/src/input.js`, `game/src/config.js`, `game/src/random.js` — input,
-  tuning and the seeded RNG.
-- `game/src/shots.js` — screenshot staging (`?shot=start|drive|chase|mission`).
-- `screenshots/` — four real renders of the game, taken in headless Chrome.
-
-Everything in the game — the city, the characters, the cars, the story, the
-sounds — is original. No assets, names or music from any commercial game.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- `game/index.html` — the page, HUD and menus
+- `game/src/main.js` — bootstrap, game loop, player, camera, saving
+- `game/src/world.js` — the city: roads, buildings, beach, ocean, collisions
+- `game/src/vehicles.js` — cars, traffic AI, driving physics
+- `game/src/pedestrians.js` — sidewalk crowds
+- `game/src/police.js` — wanted level and pursuit
+- `game/src/combat.js` — shooting, damage, explosions
+- `game/src/missions.js` — the five-job story
+- `game/src/hud.js` — HUD and minimap
+- `game/src/audio.js` — synthesized WebAudio sound
+- `game/src/input.js` — keyboard and mouse
+- `game/src/shots.js` — staged screenshot scenes
+- `game/src/config.js` — tuning and story content
+- `game/src/random.js` — seeded random
+- `game/vendor/three.module.min.js` — vendored three.js r160
+- `main.ts` — hands the game in (writes `/output/dossier.json`)

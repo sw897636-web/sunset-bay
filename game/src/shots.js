@@ -1,182 +1,137 @@
-// Screenshot staging behind ?shot=start|drive|chase|mission (with &seed=N).
-// Each scene is the real game, not a mock: the world is built, a job is
-// running, and a small autopilot plays it forward for a few simulated
-// seconds, so the frame is what a short game really looks like. The caller
-// renders each frame and screenshots once window.__shotReady is set.
-import { WORLD } from './config.js';
-import { makeVehicle } from './vehicles.js';
-import { walkCycle } from './models.js';
+// Sunset Bay: staged scenes for the screenshots. ?shot=1..4 stages a
+// different moment of the game — driving, on foot, a police chase, a
+// mission — then the playtest photographs it. Nothing here is used by
+// normal play; it only runs when the URL carries ?shot=.
 
-function foldAngle(a) {
-  while (a > Math.PI) a -= Math.PI * 2;
-  while (a < -Math.PI) a += Math.PI * 2;
-  return a;
+import { CONFIG } from './config.js';
+import { makeCarMesh, makeCarRecord } from './vehicles.js';
+
+export const SHOT_DEFS = [
+{ name: '1-cover.jpg', label: 'Sunset drive down the Neon Strip' },
+{ name: '2-onfoot.jpg', label: 'On foot on the Marina promenade' },
+{ name: '3-chase.jpg', label: 'Three-star police chase' },
+{ name: '4-mission.jpg', label: 'First Pickup — meeting Rico' },
+];
+
+export function stageShot(game, num) {
+const g = game;
+g.shotMode = true;
+g.state = 'playing';
+g.input.autopilot = false;
+g.audio.ensure();
+const traffic = g.traffic;
+const police = g.police;
+const peds = g.pedestrians;
+if (num === 1) {
+const car = g.playerCar;
+car.x = -120;
+car.z = 0;
+car.heading = Math.PI / 2;
+car.speed = 26;
+car.mesh.position.set(car.x, 0, car.z);
+car.mesh.rotation.y = car.heading;
+g.enterCar(car);
+g.cameraMode = 'drive';
+g.input.autopilot = true;
+g.input.autoSteer = 0;
+for (let i = 0; i < 3; i++) {
+const t = traffic.cars[i];
+t.x = -120 + (i + 1) * 26;
+t.z = (i % 2 === 0 ? 4 : -4);
+t.heading = Math.PI / 2;
+t.speed = 20;
+t.cruiseSpeed = 20;
 }
-
-// Put the hero in a car without the E key, for the driving scenes.
-function seatHero(world, car) {
-  world.playerCar = car;
-  car.traffic = false;
-  world.player.mesh.visible = false;
-  world.player.x = car.x;
-  world.player.z = car.z;
-  world.player.heading = car.heading;
+police.setWanted(3);
+const pc1 = police.spawnPoliceCar(-90, 4);
+pc1.heading = Math.PI / 2;
+pc1.speed = 26;
+pc1.staged = true;
+const pc2 = police.spawnPoliceCar(-75, -4);
+pc2.heading = Math.PI / 2;
+pc2.speed = 26;
+pc2.staged = true;
+g.missions.start(0);
+g.cash = 1250;
+g.hud.showMessage('Neon Strip — head for the Marina marker', 30);
+return;
 }
-
-// Autopilot: hold W and keep the hero's car centred on its road, driving
-// straight down it. The road grid is axis-aligned, so the pilot snaps the
-// car's starting heading to the nearest cardinal direction and steers
-// against the sideways drift off the road's centre line. (Steering at the
-// nearest intersection instead would turn the car across blocks and into
-// buildings.)
-function roadCentre(coord) {
-  const first = -WORLD.edge + WORLD.street / 2;
-  const i = Math.max(0, Math.min(WORLD.blocksPerSide, Math.round((coord - first) / WORLD.step)));
-  return first + i * WORLD.step;
+if (num === 2) {
+g.exitCar();
+g.player.x = -372;
+g.player.z = 200;
+g.player.heading = -Math.PI / 2;
+g.player.y = 0;
+g.cameraMode = 'foot';
+g.cameraYaw = -Math.PI / 2;
+g.cameraPitch = 0.3;
+for (let i = 0; i < 5; i++) {
+const ped = peds.peds[i];
+ped.x = -374 + (i - 2) * 2;
+ped.z = 188 + i * 6;
+ped.targetX = ped.x;
+ped.targetZ = ped.z + (i % 2 === 0 ? 30 : -30);
 }
-
-function drivePilot(world) {
-  const car = world.playerCar;
-  const snapped = Math.round(car.heading / (Math.PI / 2)) * (Math.PI / 2);
-  const base = snapped > Math.PI ? snapped - Math.PI * 2 : snapped;
-  const alongZ = Math.abs(Math.sin(base)) < 0.5;
-  return {
-    update(dt) {
-      const car = world.playerCar;
-      if (!car) return;
-      let desired = base;
-      if (alongZ) {
-        const centre = roadCentre(car.x);
-        desired = base - Math.cos(base) * (car.x - centre) * 0.03;
-      } else {
-        const centre = roadCentre(car.z);
-        desired = base + Math.sin(base) * (car.z - centre) * 0.03;
-      }
-      const diff = foldAngle(desired - car.heading);
-      world.input.hold('w');
-      if (diff > 0.12) { world.input.hold('a'); world.input.release('d'); }
-      else if (diff < -0.12) { world.input.hold('d'); world.input.release('a'); }
-      else { world.input.release('a'); world.input.release('d'); }
-    },
-  };
+g.missions.start(0);
+g.hud.showMessage('Marina District — the sun is going down over the bay', 30);
+return;
 }
-
-// Two cop cars pinned in the oncoming lane just ahead of the hero, so the
-// chase is always in frame (the camera looks forward from behind the car).
-// A free-driving cop would cut corners into the blocks on a turn.
-function stageChaseCops(world) {
-  const car = world.playerCar;
-  const cops = [];
-  for (const ahead of [26, 40]) {
-    const cop = makeVehicle(world.scene, {
-      x: car.x - 7, z: car.z + ahead, heading: Math.PI, police: true,
-    });
-    cop.traffic = false;
-    cop.speed = 15;
-    world.cars.push(cop);
-    cops.push(cop);
-  }
-  return {
-    update(dt) {
-      const car = world.playerCar;
-      cops.forEach((cop, i) => {
-        const gap = i === 0 ? 15 : 24;
-        const fx = Math.sin(car.heading);
-        const fz = Math.cos(car.heading);
-        const rx = -Math.cos(car.heading);
-        const rz = Math.sin(car.heading);
-        cop.x = car.x + fx * gap + rx * 7;
-        cop.z = car.z + fz * gap + rz * 7;
-        cop.heading = car.heading + Math.PI;
-        cop.speed = 15;
-        cop.mesh.position.set(cop.x, 0, cop.z);
-        cop.mesh.rotation.y = cop.heading;
-        for (const wheel of cop.mesh.userData.wheels) wheel.rotation.x += cop.speed * dt * 1.4;
-        if (cop.mesh.userData.lightBar) {
-          cop.mesh.userData.lightBar.material.color.setHex(Math.floor(world.time * 4) % 2 === 0 ? 0xff2222 : 0x2266ff);
-        }
-      });
-    },
-  };
+if (num === 3) {
+const car = g.playerCar;
+car.x = 80;
+car.z = 120;
+car.heading = 0;
+car.speed = 30;
+car.mesh.position.set(car.x, 0, car.z);
+car.mesh.rotation.y = car.heading;
+g.enterCar(car);
+g.cameraMode = 'drive';
+g.input.autopilot = true;
+g.startMission(3);
+police.setWanted(4);
+const pc1 = police.spawnPoliceCar(76, 145);
+pc1.heading = 0;
+pc1.speed = 30;
+pc1.staged = true;
+const pc2 = police.spawnPoliceCar(84, 155);
+pc2.heading = 0;
+pc2.speed = 30;
+pc2.staged = true;
+const pc3 = police.spawnPoliceCar(72, 165);
+pc3.heading = 0;
+pc3.speed = 30;
+pc3.staged = true;
+for (let i = 0; i < 2; i++) {
+const t = traffic.cars[i];
+t.x = 80 + (i === 0 ? 4 : -4);
+t.z = 120 + 30 + i * 18;
+t.heading = 0;
+t.speed = 12;
 }
-
-function pickParkedCar(world) {
-  for (const car of world.cars) {
-    if (!car.traffic && !car.police && !car.isGold) return car;
-  }
-  return world.cars[0];
+car.health = 45;
+car.smoking = true;
+g.combat.spawnSmoke({ x: car.x, y: 1, z: car.z - 2 });
+g.cash = 4800;
+g.player.health = 82;
+g.hud.showMessage('Four stars — lose the tail!', 30);
+return;
 }
-
-export function stageShot(world, name, ui) {
-  if (name === 'start') {
-    // Title screen over the living city; the orbit camera is the shot.
-    return { pilot: { update() {} }, state: 'title', readyAfter: 2 };
-  }
-
-  ui.startGame(false);
-  // A north–south road near the middle of town, heading south into the sun.
-  const roadX = -WORLD.edge + WORLD.street / 2 + 4 * WORLD.step;
-  const roadZ = -WORLD.edge + WORLD.street / 2 + 2 * WORLD.step;
-
-  if (name === 'chase') {
-    const car = pickParkedCar(world);
-    car.x = roadX + 3.5;
-    car.z = roadZ;
-    car.heading = 0;
-    car.speed = 0;
-    seatHero(world, car);
-    world.missions.start(3); // The Corner Job: a getaway in progress
-    world.police.setWanted(3);
-    const cops = stageChaseCops(world);
-    const drive = drivePilot(world);
-    return {
-      pilot: { update(dt) { drive.update(dt); cops.update(dt); } },
-      state: 'playing',
-      readyAfter: 8,
-    };
-  }
-
-  if (name === 'mission') {
-    // On foot at the pier, walking to the package for Job 2.
-    world.missions.start(1);
-    const px = -WORLD.edge + 30;
-    const pz = WORLD.edge + 22;
-    world.player.x = px;
-    world.player.z = pz;
-    world.player.heading = 0;
-    world.player.mesh.position.set(px, 0, pz);
-    const target = world.missions.marker();
-    return {
-      pilot: {
-        update(dt) {
-          if (!target) return;
-          const dx = target.x - world.player.x;
-          const dz = target.z - world.player.z;
-          const d = Math.hypot(dx, dz);
-          if (d > 4) {
-            const step = 4.5 * dt;
-            world.player.x += (dx / d) * step;
-            world.player.z += (dz / d) * step;
-            world.player.heading = Math.atan2(dx, dz);
-            world.player.walkPhase += dt * 8;
-            walkCycle(world.player.mesh, world.player.walkPhase, 1);
-            world.player.mesh.position.set(world.player.x, 0, world.player.z);
-            world.player.mesh.rotation.y = world.player.heading;
-          }
-        },
-      },
-      state: 'playing',
-      readyAfter: 5,
-    };
-  }
-
-  // Default: 'drive' — Job 1, already in a stolen car, cruising downtown.
-  const car = pickParkedCar(world);
-  car.x = roadX + 3.5;
-  car.z = roadZ;
-  car.heading = 0;
-  car.speed = 0;
-  seatHero(world, car);
-  world.missions.interact(true); // the theft that starts Job 1
-  return { pilot: drivePilot(world), state: 'playing', readyAfter: 5 };
+if (num === 4) {
+g.exitCar();
+g.player.x = -264;
+g.player.z = 222;
+g.player.heading = -Math.PI / 4;
+g.cameraMode = 'foot';
+g.cameraYaw = -Math.PI / 4;
+g.cameraPitch = 0.1;
+g.missions.start(0);
+const rico = g.ricoMesh;
+if (rico) {
+rico.position.set(-272, 0, 232);
+rico.visible = true;
+}
+g.player.cash = 250;
+g.hud.showMessage('Rico Delmar: "Mara. You came. Good. First job is simple."', 30);
+return;
+}
 }
