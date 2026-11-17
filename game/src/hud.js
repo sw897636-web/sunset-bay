@@ -1,52 +1,52 @@
-// The HUD: health, cash, wanted stars, mission panel, toasts, prompts and
-// the live minimap — a top-down drawing of the city with the player, cars,
-// cops and the mission marker on it.
-import { CITY } from './config.js';
+// The HUD: health, cash, wanted stars, the job panel, toasts, prompts and
+// the live minimap — a top-down sketch of the city with the hero, cars,
+// cops and the job marker drawn on it.
+import { WORLD } from './config.js';
 
 export function createHud() {
-  const el = (id) => document.getElementById(id);
-  const healthBar = el('healthBar');
-  const cashLine = el('cashLine');
-  const cashSub = el('cashSub');
-  const ammoLine = el('ammoLine');
-  const starsEl = el('stars');
-  const missionTitle = el('missionTitle');
-  const missionText = el('missionText');
-  const missionTimer = el('missionTimer');
-  const toastEl = el('toast');
-  const promptEl = el('prompt');
-  const speedo = el('speedo');
-  const crosshair = el('crosshair');
-  const damage = el('damage');
-  const minimap = el('minimap');
+  const byId = (id) => document.getElementById(id);
+  const healthBar = byId('healthBar');
+  const cashLine = byId('cashLine');
+  const cashSub = byId('cashSub');
+  const ammoLine = byId('ammoLine');
+  const starsEl = byId('stars');
+  const jobTitle = byId('missionTitle');
+  const jobText = byId('missionText');
+  const jobTimer = byId('missionTimer');
+  const toastEl = byId('toast');
+  const promptEl = byId('prompt');
+  const speedo = byId('speedo');
+  const crosshair = byId('crosshair');
+  const damage = byId('damage');
+  const minimap = byId('minimap');
   const mm = minimap.getContext('2d');
 
-  let toastTimer = 0;
+  let toastLeft = 0;
 
-  function drawMinimap(world) {
+  function paintMinimap(world) {
     const size = 180;
-    const span = CITY.half * 2 + 120; // world units across the map
+    const span = WORLD.edge * 2 + 120; // world units across the map
     const scale = size / span;
     const toMap = (x, z) => [size / 2 + x * scale, size / 2 + z * scale];
     mm.clearRect(0, 0, size, size);
-    // Ocean + beach.
+    // Sea and sand along the bottom.
     mm.fillStyle = '#2a6f8f';
-    mm.fillRect(0, size / 2 + CITY.half * scale, size, size);
+    mm.fillRect(0, size / 2 + WORLD.edge * scale, size, size);
     mm.fillStyle = '#e8cf9a';
-    mm.fillRect(0, size / 2 + (CITY.half - 2) * scale, size, 6);
-    // Roads.
+    mm.fillRect(0, size / 2 + (WORLD.edge - 2) * scale, size, 6);
+    // Streets.
     mm.strokeStyle = '#55555f';
     mm.lineWidth = 5;
-    for (let i = 0; i <= CITY.blocks; i += 1) {
-      const c = -CITY.half + CITY.roadWidth / 2 + i * CITY.pitch;
-      const [x0, y0] = toMap(c, -CITY.half);
-      const [x1, y1] = toMap(c, CITY.half);
+    for (let i = 0; i <= WORLD.blocksPerSide; i += 1) {
+      const c = -WORLD.edge + WORLD.street / 2 + i * WORLD.step;
+      const [x0, y0] = toMap(c, -WORLD.edge);
+      const [x1, y1] = toMap(c, WORLD.edge);
       mm.beginPath(); mm.moveTo(x0, y0); mm.lineTo(x1, y1); mm.stroke();
-      const [hx0, hy0] = toMap(-CITY.half, c);
-      const [hx1, hy1] = toMap(CITY.half, c);
+      const [hx0, hy0] = toMap(-WORLD.edge, c);
+      const [hx1, hy1] = toMap(WORLD.edge, c);
       mm.beginPath(); mm.moveTo(hx0, hy0); mm.lineTo(hx1, hy1); mm.stroke();
     }
-    // Mission marker.
+    // Job marker, pulsing.
     const marker = world.missions.marker();
     if (marker) {
       const [mx, my] = toMap(marker.x, marker.z);
@@ -60,10 +60,10 @@ export function createHud() {
       mm.closePath();
       mm.fill();
     }
-    // Cars: traffic grey, police flashing blue/red.
+    // Cars: traffic grey, police flashing red and blue.
     for (const car of world.cars) {
       const [cx, cy] = toMap(car.x, car.z);
-      if (car.isPolice) {
+      if (car.police) {
         mm.fillStyle = Math.floor(world.time * 4) % 2 === 0 ? '#ff3333' : '#3388ff';
         mm.beginPath(); mm.arc(cx, cy, 4, 0, Math.PI * 2); mm.fill();
       } else if (car !== world.playerCar) {
@@ -71,7 +71,7 @@ export function createHud() {
         mm.fillRect(cx - 2, cy - 2, 4, 4);
       }
     }
-    // Player arrow, rotated to face the heading.
+    // Hero arrow, rotated to face the heading.
     const [px, py] = toMap(world.player.x, world.player.z);
     mm.save();
     mm.translate(px, py);
@@ -91,22 +91,22 @@ export function createHud() {
 
   return {
     update(world, dt) {
-      const p = world.player;
-      healthBar.style.width = `${Math.max(0, p.health)}%`;
-      healthBar.style.background = p.health > 50
+      const hero = world.player;
+      healthBar.style.width = `${Math.max(0, hero.health)}%`;
+      healthBar.style.background = hero.health > 50
         ? 'linear-gradient(90deg,#ff5a3c,#ffb03c)'
         : 'linear-gradient(90deg,#d81e1e,#ff5a3c)';
-      cashLine.firstChild.textContent = `$${p.cash.toLocaleString('en-US')} `;
+      cashLine.firstChild.textContent = `$${hero.cash.toLocaleString('en-US')} `;
       const jobNo = world.missions.active
         ? world.missions.index + 1
         : Math.min(world.completedMissions + 1, world.missions.totalMissions);
       cashSub.textContent = `· Job ${jobNo} of ${world.missions.totalMissions}`;
-      ammoLine.textContent = p.hasPistol
-        ? (world.combat.reloading ? 'Reloading…' : `Pistol ${p.ammo} / 12 — Q holster, R reload`)
+      ammoLine.textContent = hero.hasPistol
+        ? (world.combat.reloading ? 'Reloading…' : `Pistol ${hero.ammo} / 12 — Q holster, R reload`)
         : 'No pistol — earn one in Job 2';
-      const w = world.police.wanted;
+      const heat = world.police.wanted;
       let stars = '';
-      for (let i = 0; i < 5; i += 1) stars += `<span class="${i < w ? '' : 'dim'}">★</span>`;
+      for (let i = 0; i < 5; i += 1) stars += `<span class="${i < heat ? '' : 'dim'}">★</span>`;
       starsEl.innerHTML = stars;
       if (world.playerCar) {
         speedo.classList.remove('hidden');
@@ -115,22 +115,22 @@ export function createHud() {
       } else {
         speedo.classList.add('hidden');
       }
-      crosshair.classList.toggle('hidden', !(p.hasPistol && p.weaponOut));
-      damage.style.opacity = p.health < 35 ? String(0.35 + (0.35 - p.health / 100)) : '0';
-      if (toastTimer > 0) {
-        toastTimer -= dt;
-        if (toastTimer <= 0) toastEl.textContent = '';
+      crosshair.classList.toggle('hidden', !(hero.hasPistol && hero.weaponOut));
+      damage.style.opacity = hero.health < 35 ? String(0.35 + (0.35 - hero.health / 100)) : '0';
+      if (toastLeft > 0) {
+        toastLeft -= dt;
+        if (toastLeft <= 0) toastEl.textContent = '';
       }
-      drawMinimap(world);
+      paintMinimap(world);
     },
     toast(text) {
       toastEl.textContent = text;
-      toastTimer = 4;
+      toastLeft = 4;
     },
     setMission(title, text, timer) {
-      missionTitle.textContent = title;
-      missionText.textContent = text;
-      missionTimer.textContent = timer;
+      jobTitle.textContent = title;
+      jobText.textContent = text;
+      jobTimer.textContent = timer;
     },
     setPrompt(text) {
       if (text) {
@@ -140,7 +140,7 @@ export function createHud() {
         promptEl.classList.add('hidden');
       }
     },
-    show() { el('hud').classList.remove('hidden'); },
-    hide() { el('hud').classList.add('hidden'); },
+    show() { byId('hud').classList.remove('hidden'); },
+    hide() { byId('hud').classList.add('hidden'); },
   };
 }

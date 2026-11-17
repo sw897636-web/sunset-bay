@@ -1,59 +1,65 @@
-// Sunset Bay: every tunable number lives here so the rest of the game reads
-// one shared truth. Units are metres, speeds are metres per second.
-export const CITY = {
-  blocks: 7,          // blocks per side
-  blockSize: 46,      // metres of buildings per block
-  roadWidth: 14,      // metres of asphalt between blocks
-  half: 0,            // filled in by citySize()
+// Sunset Bay tuning: every number the game balances on lives in this one
+// file, so the other modules read a single shared truth. Distances are in
+// metres; speeds are metres per second; angles are radians.
+export const WORLD = {
+  blocksPerSide: 7, // blocks along each side of town
+  block: 46, // metres of buildings per block
+  street: 14, // metres of asphalt between blocks
 };
-CITY.pitch = CITY.blockSize + CITY.roadWidth;
-CITY.half = (CITY.blocks * CITY.pitch + CITY.roadWidth) / 2; // city spans -half..half
-CITY.beachZ = CITY.half + 26;   // sand strip on the south edge (+z)
-CITY.oceanZ = CITY.half + 150;  // ocean plane extends to here
+WORLD.step = WORLD.block + WORLD.street;
+WORLD.edge = (WORLD.blocksPerSide * WORLD.step + WORLD.street) / 2; // town runs -edge..edge
+WORLD.sand = WORLD.edge + 26; // sand strip on the south edge (+z)
+WORLD.sea = WORLD.edge + 150; // the ocean plane reaches out to here
 
-export const PLAYER = {
-  walkSpeed: 6,
-  runSpeed: 10,
-  radius: 0.55,
-  health: 100,
-  punchDamage: 25,
-  punchRange: 2.2,
-};
-
-export const CAR = {
-  accel: 22,
-  brake: 34,
-  reverseAccel: 12,
-  maxSpeed: 34,
-  maxReverse: 10,
-  turnRate: 1.9,
-  radius: 1.6,
+export const HERO = {
+  stroll: 6,
+  sprint: 10,
+  girth: 0.55,
+  vitality: 100,
+  fist: 25,
+  reach: 2.2,
 };
 
-export const POLICE = {
-  maxWanted: 5,
-  decaySeconds: 22,     // quiet seconds before one star fades
-  bustSeconds: 2.2,     // seconds pinned by a cop before the bust lands
-  copCarSpeed: 30,
-  footCopSpeed: 7.5,
+export const AUTO = {
+  push: 22,
+  stop: 34,
+  backPush: 12,
+  top: 34,
+  topBack: 10,
+  steer: 1.9,
+  girth: 1.6,
+};
+
+export const COPS = {
+  stars: 5,
+  coolOff: 22, // quiet seconds before one star fades
+  pinTime: 2.2, // seconds pinned by a cop before the bust lands
+  chase: 30,
+  foot: 7.5,
 };
 
 export const SAVE_KEY = 'sunset-bay-save-v1';
 
-export function clamp(value, min, max) {
-  return value < min ? min : value > max ? max : value;
+export function clampNum(value, low, high) {
+  if (value < low) return low;
+  if (value > high) return high;
+  return value;
 }
-export function lerp(a, b, t) {
+
+export function mix(a, b, t) {
   return a + (b - a) * t;
 }
-export function dist2(ax, az, bx, bz) {
+
+export function distSq(ax, az, bx, bz) {
   const dx = ax - bx;
   const dz = az - bz;
   return dx * dx + dz * dz;
 }
-export function angleLerp(a, b, t) {
-  let d = b - a;
+
+// Shortest-arc interpolation between two headings.
+export function turnToward(from, to, t) {
+  let d = to - from;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
+  return from + d * t;
 }

@@ -1,80 +1,82 @@
-// Keyboard + mouse input. The camera orbits by dragging the mouse (no pointer
-// lock, so it works the same in a real browser and a headless screenshot run).
-// Every frame the game reads `state` and consumes `pressed` edge events.
-export function createInput(canvas) {
-  const keys = new Set();
-  const pressed = new Set();
-  let mouseDX = 0;
-  let mouseDY = 0;
-  let mouseDown = false;
-  let clickX = 0;
-  let clickY = 0;
-  let clicked = false;
-  let lastX = 0;
-  let lastY = 0;
+// Keyboard and mouse for Sunset Bay. The camera orbits by dragging the
+// mouse (no pointer lock, so it behaves the same in a real browser and in
+// a headless screenshot run). Each frame the game reads `state` and spends
+// the one-frame edge events through `wasPressed` / `wasClicked`.
+export function createControls(canvas) {
+  const held = new Set();
+  const fresh = new Set();
+  let dragX = 0;
+  let dragY = 0;
+  let dragging = false;
+  let tap = false;
+  let downX = 0;
+  let downY = 0;
+  let prevX = 0;
+  let prevY = 0;
 
-  function keyName(event) {
-    const k = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    return k;
+  function readKey(event) {
+    return event.key.length === 1 ? event.key.toLowerCase() : event.key;
   }
 
   window.addEventListener('keydown', (event) => {
-    const k = keyName(event);
-    if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) event.preventDefault();
-    if (!keys.has(k)) pressed.add(k);
-    keys.add(k);
+    const key = readKey(event);
+    if (key === ' ' || key.startsWith('arrow')) event.preventDefault();
+    if (!held.has(key)) fresh.add(key);
+    held.add(key);
   });
-  window.addEventListener('keyup', (event) => keys.delete(keyName(event)));
-  window.addEventListener('blur', () => keys.clear());
+  window.addEventListener('keyup', (event) => held.delete(readKey(event)));
+  window.addEventListener('blur', () => held.clear());
 
   canvas.addEventListener('mousedown', (event) => {
-    mouseDown = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    clickX = event.clientX;
-    clickY = event.clientY;
+    dragging = true;
+    prevX = event.clientX;
+    prevY = event.clientY;
+    downX = event.clientX;
+    downY = event.clientY;
   });
   window.addEventListener('mouseup', (event) => {
-    if (mouseDown && Math.abs(event.clientX - clickX) < 6 && Math.abs(event.clientY - clickY) < 6) {
-      clicked = true;
+    if (dragging && Math.abs(event.clientX - downX) < 6 && Math.abs(event.clientY - downY) < 6) {
+      tap = true;
     }
-    mouseDown = false;
+    dragging = false;
   });
   window.addEventListener('mousemove', (event) => {
-    if (!mouseDown) return;
-    mouseDX += event.clientX - lastX;
-    mouseDY += event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
+    if (!dragging) return;
+    dragX += event.clientX - prevX;
+    dragY += event.clientY - prevY;
+    prevX = event.clientX;
+    prevY = event.clientY;
   });
 
   return {
     state: {
-      get forward() { return keys.has('w') || keys.has('arrowup'); },
-      get back() { return keys.has('s') || keys.has('arrowdown'); },
-      get left() { return keys.has('a') || keys.has('arrowleft'); },
-      get right() { return keys.has('d') || keys.has('arrowright'); },
-      get run() { return keys.has('shift'); },
-      get brake() { return keys.has(' '); },
+      get forward() { return held.has('w') || held.has('arrowup'); },
+      get back() { return held.has('s') || held.has('arrowdown'); },
+      get left() { return held.has('a') || held.has('arrowleft'); },
+      get right() { return held.has('d') || held.has('arrowright'); },
+      get run() { return held.has('shift'); },
+      get brake() { return held.has(' '); },
     },
-    // True once for the frame the key went down; cleared by endFrame().
-    wasPressed(key) { return pressed.has(key); },
-    // True once for the frame the mouse was clicked without dragging.
-    wasClicked() { return clicked; },
-    // Accumulated drag since the last frame, in pixels.
+    // True once, on the frame the key went down; cleared by endFrame().
+    wasPressed(key) { return fresh.has(key); },
+    // True while the key is held down right now (for hold-to-work actions).
+    isHeld(key) { return held.has(key); },
+    // True once, on the frame the mouse was clicked without dragging.
+    wasClicked() { return tap; },
+    // Mouse drag accumulated since the last frame, in pixels.
     consumeDrag() {
-      const d = { x: mouseDX, y: mouseDY };
-      mouseDX = 0;
-      mouseDY = 0;
-      return d;
+      const out = { x: dragX, y: dragY };
+      dragX = 0;
+      dragY = 0;
+      return out;
     },
-    // Test / screenshot autopilot hooks: pretend a key is held, or inject a press.
-    hold(key) { keys.add(key); },
-    release(key) { keys.delete(key); },
-    press(key) { pressed.add(key); },
+    // Hooks for the screenshot autopilot: pretend a key is held, or inject a press.
+    hold(key) { held.add(key); },
+    release(key) { held.delete(key); },
+    press(key) { fresh.add(key); },
     endFrame() {
-      pressed.clear();
-      clicked = false;
+      fresh.clear();
+      tap = false;
     },
   };
 }

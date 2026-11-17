@@ -5,30 +5,30 @@
 [![reward](https://make.fun/badge/gta6-01/sw897636-web/sunset-bay/reward.svg)](https://make.fun/bounty/gta6-01)
 
 **Sunset Bay** is a complete open-world crime game that runs in desktop Chrome
-from static files — no build step, no network requests at runtime. Explore a
-sun-soaked procedural coastal city on foot and by car, steal cars, take jobs
+from static files — no build step, no network requests at runtime. Roam a
+sun-soaked procedural coastal city on foot and by car, steal cars, run jobs
 for Mara the fixer, and stay one step ahead of the Bay City Police.
 
 [Play it on make.fun](https://make.fun/bounty/gta6-01)
 
 ## The game
 
-You are **Rico Vega**, fresh off the night bus with empty pockets and a name to
-make. Mara runs the Bay from a garage on Coral Row, and she has five jobs for
-you:
+You are **Rico Vega**, fresh off the night bus with empty pockets and a name
+to make. Mara runs the Bay from a garage on Coral Row, and she has five jobs
+for you:
 
 1. **First Wheels** — steal any car and bring it to Mara's Garage.
-2. **The Sunset Run** — grab a package at the end of the pier and deliver it to
-   Sunset Tower before the buyer walks (timed). Earns you a pistol.
+2. **The Sunset Run** — grab a package at the end of the pier and deliver it
+   to Sunset Tower before the buyer walks (timed). Earns you a pistol.
 3. **The Pickup** — collect Dana at the marina and get her to the garage with
    the cops already on you.
 4. **The Corner Job** — empty the till at the Coral Corner Store, then lose a
    two-star wanted level.
-5. **The Gold Sedan** — steal the gold sedan at the marina, lose three stars of
-   heat, and put it on Mara's boat. Finish the story and the Bay is yours.
+5. **The Gold Sedan** — steal the gold sedan at the marina, lose three stars
+   of heat, and put it on Mara's boat. Finish the story and the Bay is yours.
 
 Between jobs the city is yours to roam: traffic cruises the streets,
-pedestrians stroll the sidewalks (and flee when trouble starts), and every
+pedestrians stroll the sidewalks (and scatter when trouble starts), and every
 crime raises your wanted level — up to five stars, with cop cars that ram you
 and foot cops that run you down. Get busted or wasted and you can retry the
 job or free-roam instead.
@@ -81,7 +81,7 @@ vendored three.js build (`game/vendor/three.module.min.js`).
 ## Layout
 
 - `game/index.html` — page, HUD and menus.
-- `game/src/main.js` — boot, game loop, screens, camera, player, save/load.
+- `game/src/main.js` — boot, game loop, screens, camera, hero, save/load.
 - `game/src/city.js` — procedural city, road graph, collisions.
 - `game/src/vehicles.js` — driving physics and traffic AI.
 - `game/src/pedestrians.js` — pedestrians.

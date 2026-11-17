@@ -1,18 +1,28 @@
-// A small seeded RNG (mulberry32) so the city, traffic and screenshot scenes
-// are identical for a given seed, while a fresh visit still feels new.
-export function createRandom(seed) {
-  let state = (seed >>> 0) || 0x9e3779b9;
+// Deterministic dice for Sunset Bay: the city, the traffic and the staged
+// screenshot scenes all draw from one seeded stream, so ?seed=1 always
+// builds the same Bay while a fresh visit rolls a new one. sfc32, a small
+// fast generator with a long period for a game like this.
+export function makeDice(seed) {
+  let a = (seed >>> 0) || 0x9e3779b9;
+  let b = (a ^ 0x85ebca6b) >>> 0;
+  let c = (b ^ 0xc2b2ae35) >>> 0;
+  let d = (c ^ 0x27d4eb2f) >>> 0;
   function next() {
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
   }
   return {
     next,
-    range(min, max) { return min + next() * (max - min); },
-    int(min, max) { return Math.floor(min + next() * (max - min + 1)); },
-    pick(list) { return list[Math.floor(next() * list.length)]; },
-    chance(p) { return next() < p; },
+    between(low, high) { return low + next() * (high - low); },
+    whole(low, high) { return Math.floor(low + next() * (high - low + 1)); },
+    choose(list) { return list[Math.floor(next() * list.length)]; },
+    maybe(p) { return next() < p; },
   };
 }
